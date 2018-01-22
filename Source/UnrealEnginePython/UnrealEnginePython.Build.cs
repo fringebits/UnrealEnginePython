@@ -74,9 +74,9 @@ public class UnrealEnginePython : ModuleRules
     };
 
 #if WITH_FORWARDED_MODULE_RULES_CTOR
-    public UnrealEnginePython(ReadOnlyTargetRules Target) : base(Target)
+    public UnrealEnginePython(ReadOnlyTargetRules target) : base(target)
 #else
-    public UnrealEnginePython(TargetInfo Target)
+    public UnrealEnginePython(TargetInfo target)
 #endif
     {
 
@@ -138,7 +138,7 @@ public class UnrealEnginePython : ModuleRules
             );
 
 
-        if (UEBuildConfiguration.bBuildEditor)
+        if (target.bBuildEditor)
         {
             PrivateDependencyModuleNames.AddRange(new string[]{
                 "UnrealEd",
