@@ -1,4 +1,6 @@
-// Copyright 1998-2016 Epic Games, Inc. All Rights Reserved.
+// Copyright 20Tab S.r.l.
+
+#pragma once
 
 //#define UEPY_MEMORY_DEBUG	1
 #define UEPY_THREADING 1
@@ -29,6 +31,8 @@
 
 #include "UEPyModule.h"
 
+#include "Wrappers/UEPyESlateEnums.h"
+
 #include "Wrappers/UEPyFVector.h"
 #include "Wrappers/UEPyFHitResult.h"
 #include "Wrappers/UEPyFRotator.h"
@@ -43,9 +47,16 @@
 #include "Wrappers/UEPyFRandomStream.h"
 
 #include "Wrappers/UEPyFPythonOutputDevice.h"
+#if WITH_EDITOR
 #include "Wrappers/UEPyFSoftSkinVertex.h"
+#endif
 #include "Wrappers/UEPyFMorphTargetDelta.h"
 #include "Wrappers/UEPyFObjectThumbnail.h"
+
+#include "Wrappers/UEPyFViewportClient.h"
+#if WITH_EDITOR
+#include "Wrappers/UEPyFEditorViewportClient.h"
+#endif
 
 #include "UEPyCallable.h"
 #include "UEPyUClassesImporter.h"
@@ -62,16 +73,27 @@
 #include "UObject/UEPyAnimSequence.h"
 #include "Blueprint/UEPyEdGraphPin.h"
 #include "UEPyIPlugin.h"
+#include "CollectionManager/UEPyICollectionManager.h"
+#include "MaterialEditorUtilities/UEPyFMaterialEditorUtilities.h"
 #endif
 
 #include "Slate/UEPySlate.h"
 #include "Http/UEPyIHttp.h"
 #include "ConsoleManager/UEPyIConsoleManager.h"
+#include "SlateApplication/UEPyFSlateApplication.h"
 #include "Voice/UEPyIVoiceCapture.h"
 
+#include "PythonHouseKeeper.h"
 
-#define ue_py_check(py_u) if (!py_u->ue_object || !py_u->ue_object->IsValidLowLevel() || py_u->ue_object->IsPendingKillOrUnreachable())\
-							return PyErr_Format(PyExc_Exception, "PyUObject is in invalid state")
+
+#define ue_py_check(py_u) if (!FUnrealEnginePythonHouseKeeper::Get()->IsValidPyUObject(py_u))\
+	return PyErr_Format(PyExc_Exception, "PyUObject is in invalid state")
+
+#define ue_py_check_int(py_u) if (!FUnrealEnginePythonHouseKeeper::Get()->IsValidPyUObject(py_u))\
+	{\
+		PyErr_SetString(PyExc_Exception, "PyUObject is in invalid state");\
+		return -1;\
+	}
 
 #if PY_MAJOR_VERSION < 3
 char *PyUnicode_AsUTF8(PyObject *py_str);
@@ -79,8 +101,20 @@ int PyGILState_Check();
 #endif
 bool PyUnicodeOrString_Check(PyObject *py_obj);
 
-#define Py_RETURN_UOBJECT(py_uobj) ue_PyUObject *ret = ue_get_python_wrapper(py_uobj);\
+#define Py_RETURN_UOBJECT(py_uobj) ue_PyUObject *ret = ue_get_python_uobject_inc(py_uobj);\
 	if (!ret)\
 		return PyErr_Format(PyExc_Exception, "uobject is in invalid state");\
-	Py_INCREF(ret);\
 	return (PyObject *)ret;
+
+#define Py_RETURN_UOBJECT_NOINC(py_uobj) ue_PyUObject *ret = ue_get_python_uobject(py_uobj);\
+	if (!ret)\
+		return PyErr_Format(PyExc_Exception, "uobject is in invalid state");\
+	return (PyObject *)ret;
+
+#if ENGINE_MINOR_VERSION < 16
+template<class CPPSTRUCT>
+struct TStructOpsTypeTraitsBase2 : TStructOpsTypeTraitsBase
+{
+
+};
+#endif

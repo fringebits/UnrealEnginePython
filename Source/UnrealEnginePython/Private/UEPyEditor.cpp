@@ -25,6 +25,9 @@
 #include "Editor/LandscapeEditor/Public/LandscapeEditorModule.h"
 #include "Editor/LandscapeEditor/Public/LandscapeFileFormatInterface.h"
 
+#include "Developer/Settings/Public/ISettingsModule.h"
+#include "Engine/Blueprint.h"
+
 
 PyObject *py_unreal_engine_editor_play_in_viewport(PyObject * self, PyObject * args)
 {
@@ -67,6 +70,26 @@ PyObject *py_unreal_engine_editor_play_in_viewport(PyObject * self, PyObject * a
 
 }
 
+PyObject *py_unreal_engine_request_play_session(PyObject * self, PyObject * args)
+{
+
+	PyObject *py_at_player_start = nullptr;
+	PyObject *py_simulate_in_editor = nullptr;
+
+	if (!PyArg_ParseTuple(args, "|OO:request_play_session", &py_at_player_start, &py_simulate_in_editor))
+	{
+		return nullptr;
+	}
+
+	bool bAtPlayerStart = py_at_player_start && PyObject_IsTrue(py_at_player_start);
+	bool bSimulate = py_simulate_in_editor && PyObject_IsTrue(py_simulate_in_editor);
+
+	GEditor->RequestPlaySession(bAtPlayerStart, nullptr, bSimulate);
+
+	Py_RETURN_NONE;
+
+}
+
 
 PyObject *py_unreal_engine_get_editor_world(PyObject * self, PyObject * args)
 {
@@ -75,11 +98,7 @@ PyObject *py_unreal_engine_get_editor_world(PyObject * self, PyObject * args)
 		return PyErr_Format(PyExc_Exception, "no GEditor found");
 
 	UWorld *world = GEditor->GetEditorWorldContext().World();
-	ue_PyUObject *ret = ue_get_python_wrapper(world);
-	if (!ret)
-		return PyErr_Format(PyExc_Exception, "uobject is in invalid state");
-	Py_INCREF(ret);
-	return (PyObject *)ret;
+	Py_RETURN_UOBJECT(world);
 }
 
 PyObject *py_unreal_engine_console_exec(PyObject * self, PyObject * args)
@@ -97,8 +116,7 @@ PyObject *py_unreal_engine_console_exec(PyObject * self, PyObject * args)
 
 	GEditor->Exec(GEditor->GetEditorWorldContext().World(), UTF8_TO_TCHAR(command), *GLog);
 
-	Py_INCREF(Py_None);
-	return Py_None;
+	Py_RETURN_NONE;
 }
 
 PyObject *py_unreal_engine_allow_actor_script_execution_in_editor(PyObject * self, PyObject * args)
@@ -141,7 +159,7 @@ PyObject *py_unreal_engine_editor_get_selected_actors(PyObject * self, PyObject 
 		if (!obj->IsA<AActor>())
 			continue;
 		AActor *actor = (AActor *)obj;
-		ue_PyUObject *item = ue_get_python_wrapper(actor);
+		ue_PyUObject *item = ue_get_python_uobject(actor);
 		if (item)
 			PyList_Append(actors, (PyObject *)item);
 	}
@@ -342,9 +360,11 @@ PyObject *py_unreal_engine_import_asset(PyObject * self, PyObject * args)
 		UClass *u_class = FindObject<UClass>(ANY_PACKAGE, UTF8_TO_TCHAR(class_name));
 		if (u_class)
 		{
-			ue_PyUObject *py_obj = ue_get_python_wrapper(u_class);
-			if (py_obj)
-				Py_INCREF(py_obj);
+			ue_PyUObject *py_obj = ue_get_python_uobject(u_class);
+			if (!py_obj)
+			{
+				return PyErr_Format(PyExc_Exception, "invalid uobject");
+			}
 			factory_class = (UClass *)py_obj->ue_object;
 		}
 	}
@@ -414,11 +434,7 @@ PyObject *py_unreal_engine_import_asset(PyObject * self, PyObject * args)
 	{
 
 		UObject *object = objects[0];
-		ue_PyUObject *ret = ue_get_python_wrapper(object);
-		if (!ret)
-			return PyErr_Format(PyExc_Exception, "PyUObject is in invalid state");
-		Py_INCREF(ret);
-		return (PyObject *)ret;
+		Py_RETURN_UOBJECT(object);
 	}
 	else if (objects.Num() > 1)
 	{
@@ -426,9 +442,13 @@ PyObject *py_unreal_engine_import_asset(PyObject * self, PyObject * args)
 
 		for (UObject *object : objects)
 		{
-			ue_PyUObject *ret = ue_get_python_wrapper(object);
+			ue_PyUObject *ret = ue_get_python_uobject(object);
 			if (!ret)
+			{
+				Py_DECREF(assets_list);
 				return PyErr_Format(PyExc_Exception, "PyUObject is in invalid state");
+			}
+
 			PyList_Append(assets_list, (PyObject *)ret);
 		}
 
@@ -436,8 +456,7 @@ PyObject *py_unreal_engine_import_asset(PyObject * self, PyObject * args)
 
 	}
 
-	Py_INCREF(Py_None);
-	return Py_None;
+	Py_RETURN_NONE;
 }
 
 PyObject *py_unreal_engine_editor_tick(PyObject * self, PyObject * args)
@@ -518,11 +537,7 @@ PyObject *py_unreal_engine_get_asset(PyObject * self, PyObject * args)
 	FAssetData asset = AssetRegistryModule.Get().GetAssetByObjectPath(UTF8_TO_TCHAR(path));
 	if (!asset.IsValid())
 		return PyErr_Format(PyExc_Exception, "unable to find asset %s", path);
-	ue_PyUObject *ret = ue_get_python_wrapper(asset.GetAsset());
-	if (!ret)
-		return PyErr_Format(PyExc_Exception, "PyUObject is in invalid state");
-	Py_INCREF(ret);
-	return (PyObject *)ret;
+	Py_RETURN_UOBJECT(asset.GetAsset());
 }
 
 PyObject *py_unreal_engine_find_asset(PyObject * self, PyObject * args)
@@ -544,11 +559,7 @@ PyObject *py_unreal_engine_find_asset(PyObject * self, PyObject * args)
 		Py_INCREF(Py_None);
 		return Py_None;
 	}
-	ue_PyUObject *ret = ue_get_python_wrapper(asset.GetAsset());
-	if (!ret)
-		return PyErr_Format(PyExc_Exception, "PyUObject is in invalid state");
-	Py_INCREF(ret);
-	return (PyObject *)ret;
+	Py_RETURN_UOBJECT(asset.GetAsset());
 }
 
 PyObject *py_unreal_engine_get_asset_referencers(PyObject * self, PyObject * args)
@@ -683,11 +694,7 @@ PyObject *py_unreal_engine_duplicate_asset(PyObject * self, PyObject * args)
 		return PyErr_Format(PyExc_Exception, "unable to duplicate asset %s", path);
 	}
 
-	ue_PyUObject *ret = ue_get_python_wrapper(new_asset);
-	if (!ret)
-		return PyErr_Format(PyExc_Exception, "uobject is in invalid state");
-	Py_INCREF(ret);
-	return (PyObject *)ret;
+	Py_RETURN_UOBJECT(new_asset);
 }
 
 PyObject *py_unreal_engine_delete_asset(PyObject * self, PyObject * args)
@@ -798,7 +805,7 @@ PyObject *py_unreal_engine_get_assets(PyObject * self, PyObject * args)
 	{
 		if (!asset.IsValid())
 			continue;
-		ue_PyUObject *ret = ue_get_python_wrapper(asset.GetAsset());
+		ue_PyUObject *ret = ue_get_python_uobject(asset.GetAsset());
 		if (ret)
 		{
 			PyList_Append(assets_list, (PyObject *)ret);
@@ -849,8 +856,9 @@ PyObject *py_unreal_engine_get_assets_by_filter(PyObject * self, PyObject * args
 		}
 		else
 		{
-			ret = (PyObject *)ue_get_python_wrapper(asset.GetAsset());
+			ret = (PyObject *)ue_get_python_uobject(asset.GetAsset());
 		}
+
 		if (ret)
 		{
 			PyList_Append(assets_list, ret);
@@ -948,7 +956,7 @@ PyObject *py_unreal_engine_get_assets_by_class(PyObject * self, PyObject * args)
 	{
 		if (!asset.IsValid())
 			continue;
-		ue_PyUObject *ret = ue_get_python_wrapper(asset.GetAsset());
+		ue_PyUObject *ret = ue_get_python_uobject(asset.GetAsset());
 		if (ret)
 		{
 			PyList_Append(assets_list, (PyObject *)ret);
@@ -976,7 +984,7 @@ PyObject *py_unreal_engine_get_selected_assets(PyObject * self, PyObject * args)
 	{
 		if (!asset.IsValid())
 			continue;
-		ue_PyUObject *ret = ue_get_python_wrapper(asset.GetAsset());
+		ue_PyUObject *ret = ue_get_python_uobject(asset.GetAsset());
 		if (ret)
 		{
 			PyList_Append(assets_list, (PyObject *)ret);
@@ -1110,14 +1118,37 @@ PyObject *py_unreal_engine_create_blueprint(PyObject * self, PyObject * args)
 	outer->MarkPackageDirty();
 
 
-	ue_PyUObject *ret = ue_get_python_wrapper(bp);
-	if (!ret)
-		return PyErr_Format(PyExc_Exception, "uobject is in invalid state");
-	Py_INCREF(ret);
-	return (PyObject *)ret;
-
+	Py_RETURN_UOBJECT(bp);
 }
 
+PyObject *py_unreal_engine_get_blueprint_hierarchy_from_class(PyObject * self, PyObject * args)
+{
+	PyObject *py_class;
+	if (!PyArg_ParseTuple(args, "O:get_blueprint_hierarchy_from_class", &py_class))
+	{
+		return NULL;
+	}
+
+	UClass* u_class = ue_py_check_type<UClass>(py_class);
+	if (!u_class)
+	{
+		return PyErr_Format(PyExc_Exception, "argument is not a UClass");
+	}
+
+
+	TArray<UBlueprint*> outBPs;
+	UBlueprint::GetBlueprintHierarchyFromClass(u_class, outBPs);
+
+	PyObject *py_bpClasses = PyList_New(0);
+
+	for (UBlueprint* bpClass : outBPs)
+	{
+		ue_PyUObject *item = ue_get_python_uobject(bpClass);
+		if (item)
+			PyList_Append(py_bpClasses, (PyObject *)item);
+	}
+	return py_bpClasses;
+}
 
 PyObject *py_unreal_engine_reload_blueprint(PyObject * self, PyObject * args)
 {
@@ -1140,12 +1171,7 @@ PyObject *py_unreal_engine_reload_blueprint(PyObject * self, PyObject * args)
 
 	UBlueprint *reloaded_bp = FKismetEditorUtilities::ReloadBlueprint(bp);
 
-	ue_PyUObject *ret = ue_get_python_wrapper(reloaded_bp);
-	if (!ret)
-		return PyErr_Format(PyExc_Exception, "uobject is in invalid state");
-	Py_INCREF(ret);
-	return (PyObject *)ret;
-
+	Py_RETURN_UOBJECT(reloaded_bp);
 }
 
 PyObject *py_unreal_engine_compile_blueprint(PyObject * self, PyObject * args)
@@ -1206,12 +1232,7 @@ PyObject *py_unreal_engine_replace_blueprint(PyObject * self, PyObject * args)
 
 	UBlueprint *replaced_bp = FKismetEditorUtilities::ReplaceBlueprint(bp, bp_new);
 
-	ue_PyUObject *ret = ue_get_python_wrapper(replaced_bp);
-	if (!ret)
-		return PyErr_Format(PyExc_Exception, "uobject is in invalid state");
-	Py_INCREF(ret);
-	return (PyObject *)ret;
-
+	Py_RETURN_UOBJECT(replaced_bp);
 }
 
 PyObject *py_unreal_engine_create_blueprint_from_actor(PyObject * self, PyObject * args)
@@ -1240,12 +1261,7 @@ PyObject *py_unreal_engine_create_blueprint_from_actor(PyObject * self, PyObject
 
 	UBlueprint *bp = FKismetEditorUtilities::CreateBlueprintFromActor(UTF8_TO_TCHAR(name), actor, true);
 
-	ue_PyUObject *ret = ue_get_python_wrapper(bp);
-	if (!ret)
-		return PyErr_Format(PyExc_Exception, "uobject is in invalid state");
-	Py_INCREF(ret);
-	return (PyObject *)ret;
-
+	Py_RETURN_UOBJECT(bp);
 }
 
 PyObject *py_unreal_engine_get_blueprint_components(PyObject * self, PyObject * args)
@@ -1267,7 +1283,7 @@ PyObject *py_unreal_engine_get_blueprint_components(PyObject * self, PyObject * 
 	for (USCS_Node *node : bp->SimpleConstructionScript->GetAllNodes())
 	{
 
-		ue_PyUObject *item = ue_get_python_wrapper(node->ComponentTemplate);
+		ue_PyUObject *item = ue_get_python_uobject(node->ComponentTemplate);
 		if (item)
 			PyList_Append(py_list, (PyObject *)item);
 
@@ -1349,12 +1365,7 @@ PyObject *py_unreal_engine_add_component_to_blueprint(PyObject * self, PyObject 
 		bp->SimpleConstructionScript->AddNode(node);
 	}
 
-	ue_PyUObject *ret = ue_get_python_wrapper(node->ComponentTemplate);
-	if (!ret)
-		return PyErr_Format(PyExc_Exception, "uobject is in invalid state");
-	Py_INCREF(ret);
-	return (PyObject *)ret;
-
+	Py_RETURN_UOBJECT(node->ComponentTemplate);
 }
 
 PyObject *py_unreal_engine_blueprint_add_member_variable(PyObject * self, PyObject * args)
@@ -1463,11 +1474,7 @@ PyObject *py_unreal_engine_blueprint_add_new_timeline(PyObject * self, PyObject 
 		return PyErr_Format(PyExc_Exception, "unable to add new timeline %s", name);
 	}
 
-	ue_PyUObject *ret = ue_get_python_wrapper(timeline);
-	if (!ret)
-		return PyErr_Format(PyExc_Exception, "uobject is in invalid state");
-	Py_INCREF(ret);
-	return (PyObject *)ret;
+	Py_RETURN_UOBJECT(timeline);
 }
 
 PyObject *py_unreal_engine_blueprint_add_function(PyObject * self, PyObject * args)
@@ -1493,11 +1500,7 @@ PyObject *py_unreal_engine_blueprint_add_function(PyObject * self, PyObject * ar
 	UEdGraph *graph = FBlueprintEditorUtils::CreateNewGraph(bp, FName(UTF8_TO_TCHAR(name)), UEdGraph::StaticClass(), UEdGraphSchema_K2::StaticClass());
 	FBlueprintEditorUtils::AddFunctionGraph<UClass>(bp, graph, true, nullptr);
 
-	PyObject *ret = (PyObject *)ue_get_python_wrapper(graph);
-	if (!ret)
-		return PyErr_Format(PyExc_Exception, "uobject is in invalid state");
-	Py_INCREF(ret);
-	return ret;
+	Py_RETURN_UOBJECT(graph);
 }
 
 PyObject *py_unreal_engine_blueprint_add_event_dispatcher(PyObject * self, PyObject * args)
@@ -1544,11 +1547,7 @@ PyObject *py_unreal_engine_blueprint_add_event_dispatcher(PyObject * self, PyObj
 	bp->DelegateSignatureGraphs.Add(graph);
 	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(bp);
 
-	PyObject *ret = (PyObject *)ue_get_python_wrapper(graph);
-	if (!ret)
-		return PyErr_Format(PyExc_Exception, "uobject is in invalid state");
-	Py_INCREF(ret);
-	return ret;
+	Py_RETURN_UOBJECT(graph);
 }
 
 PyObject *py_unreal_engine_blueprint_mark_as_structurally_modified(PyObject * self, PyObject * args)
@@ -1593,11 +1592,36 @@ PyObject *py_unreal_engine_blueprint_add_ubergraph_page(PyObject * self, PyObjec
 	UEdGraph *graph = FBlueprintEditorUtils::CreateNewGraph(bp, FName(UTF8_TO_TCHAR(name)), UEdGraph::StaticClass(), UEdGraphSchema_K2::StaticClass());
 	FBlueprintEditorUtils::AddUbergraphPage(bp, graph);
 
-	PyObject *ret = (PyObject *)ue_get_python_wrapper(graph);
-	if (!ret)
-		return PyErr_Format(PyExc_Exception, "uobject is in invalid state");
-	Py_INCREF(ret);
-	return ret;
+	Py_RETURN_UOBJECT(graph);
+}
+
+PyObject *py_unreal_engine_blueprint_get_all_graphs(PyObject * self, PyObject * args)
+{
+	PyObject *py_blueprint;
+
+	if (!PyArg_ParseTuple(args, "O:blueprint_get_all_graphs", &py_blueprint))
+	{
+		return nullptr;
+	}
+
+	UBlueprint *bp = ue_py_check_type<UBlueprint>(py_blueprint);
+	if (!bp)
+		return PyErr_Format(PyExc_Exception, "uobject is not a UBlueprint");
+
+	PyObject *py_graphs = PyList_New(0);
+
+	TArray<UEdGraph*> graphs;
+
+	bp->GetAllGraphs(graphs);
+
+	for (UEdGraph *graph : graphs)
+	{
+		ue_PyUObject *item = ue_get_python_uobject(graph);
+		if (item)
+			PyList_Append(py_graphs, (PyObject *)item);
+	}
+
+	return py_graphs;
 }
 
 PyObject *py_unreal_engine_create_new_graph(PyObject * self, PyObject * args)
@@ -1663,35 +1687,6 @@ PyObject *py_unreal_engine_create_new_graph(PyObject * self, PyObject * args)
 	Py_RETURN_UOBJECT(graph);
 }
 
-PyObject *py_unreal_engine_editor_blueprint_graphs(PyObject * self, PyObject * args)
-{
-	PyObject *py_blueprint;
-
-	if (!PyArg_ParseTuple(args, "O:blueprint_graphs", &py_blueprint))
-	{
-		return nullptr;
-	}
-
-	UBlueprint *bp = ue_py_check_type<UBlueprint>(py_blueprint);
-	if (!bp)
-		return PyErr_Format(PyExc_Exception, "uobject is not a UBlueprint");
-
-	PyObject *py_graphs = PyList_New(0);
-
-	TArray<UEdGraph*> graphs;
-
-	bp->GetAllGraphs(graphs);
-
-	for (UEdGraph *graph : graphs)
-	{
-		ue_PyUObject *item = ue_get_python_wrapper(graph);
-		if (item)
-			PyList_Append(py_graphs, (PyObject *)item);
-	}
-
-	return py_graphs;
-}
-
 PyObject *py_unreal_engine_editor_on_asset_post_import(PyObject * self, PyObject * args)
 {
 	PyObject *py_callable;
@@ -1703,12 +1698,10 @@ PyObject *py_unreal_engine_editor_on_asset_post_import(PyObject * self, PyObject
 	if (!PyCallable_Check(py_callable))
 		return PyErr_Format(PyExc_Exception, "object is not a callable");
 
-	UPythonDelegate *py_delegate = NewObject<UPythonDelegate>();
+	TSharedRef<FPythonSmartDelegate> py_delegate = MakeShareable(new FPythonSmartDelegate);
 	py_delegate->SetPyCallable(py_callable);
-	py_delegate->AddToRoot();
-	FEditorDelegates::OnAssetPostImport.AddUObject(py_delegate, &UPythonDelegate::PyFOnAssetPostImport);
-	Py_INCREF(Py_None);
-	return Py_None;
+	FEditorDelegates::OnAssetPostImport.AddSP(py_delegate, &FPythonSmartDelegate::PyFOnAssetPostImport);
+	Py_RETURN_NONE;
 }
 
 PyObject *py_unreal_engine_create_material_instance(PyObject * self, PyObject * args)
@@ -2197,5 +2190,192 @@ PyObject *py_unreal_engine_play_preview_sound(PyObject * self, PyObject * args)
 	Py_RETURN_NONE;
 }
 
+PyObject *py_unreal_engine_register_settings(PyObject * self, PyObject * args)
+{
+
+
+	char *container_name;
+	char *category_name;
+	char *section_name;
+	char *display_name;
+	char *description;
+	PyObject *py_uobject;
+
+	if (!PyArg_ParseTuple(args, "sssssO:register_settings", &container_name, &category_name, &section_name, &display_name, &description, &py_uobject))
+		return nullptr;
+
+	UObject *u_object = ue_py_check_type<UObject>(py_uobject);
+	if (!u_object)
+		return PyErr_Format(PyExc_Exception, "argument is not a UObject");
+
+	if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
+	{
+		TSharedPtr<ISettingsSection> section = SettingsModule->RegisterSettings(UTF8_TO_TCHAR(container_name),
+			UTF8_TO_TCHAR(category_name),
+			UTF8_TO_TCHAR(section_name),
+			FText::FromString(UTF8_TO_TCHAR(display_name)),
+			FText::FromString(UTF8_TO_TCHAR(description)),
+			u_object);
+
+		if (!section.IsValid())
+			return PyErr_Format(PyExc_Exception, "unable to register settings");
+	}
+	else
+	{
+		return PyErr_Format(PyExc_Exception, "unable to find the Settings Module");
+	}
+
+	Py_RETURN_NONE;
+}
+
+PyObject * py_unreal_engine_show_viewer(PyObject * self, PyObject * args)
+{
+	char *container_name;
+	char *category_name;
+	char *section_name;
+
+	if (!PyArg_ParseTuple(args, "sss:register_settings", &container_name, &category_name, &section_name))
+		return nullptr;
+
+	if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
+	{
+		SettingsModule->ShowViewer(container_name, category_name, section_name);
+	}
+	else
+	{
+		return PyErr_Format(PyExc_Exception, "unable to find the Settings Module");
+	}
+
+	Py_RETURN_NONE;
+}
+
+PyObject *py_unreal_engine_unregister_settings(PyObject * self, PyObject * args)
+{
+	char *container_name;
+	char *category_name;
+	char *section_name;
+
+	if (!PyArg_ParseTuple(args, "sss:unregister_settings", &container_name, &category_name, &section_name))
+		return nullptr;
+
+	if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
+	{
+		SettingsModule->UnregisterSettings(UTF8_TO_TCHAR(container_name),
+			UTF8_TO_TCHAR(category_name),
+			UTF8_TO_TCHAR(section_name));
+	}
+	else
+	{
+		return PyErr_Format(PyExc_Exception, "unable to find the Settings Module");
+	}
+
+	Py_RETURN_NONE;
+}
+
+PyObject *py_unreal_engine_all_viewport_clients(PyObject * self, PyObject * args)
+{
+	TArray<FEditorViewportClient *> clients = GEditor->AllViewportClients;
+	PyObject *py_list = PyList_New(0);
+	for (FEditorViewportClient *client : clients)
+	{
+		PyList_Append(py_list, py_ue_new_feditor_viewport_client(TSharedRef<FEditorViewportClient>(client)));
+	}
+	return py_list;
+}
+
+PyObject *py_unreal_engine_editor_sync_browser_to_assets(PyObject * self, PyObject * args)
+{
+	PyObject *py_items;
+	PyObject *py_focus = nullptr;
+
+	if (!PyArg_ParseTuple(args, "O|O:sync_browser_to_assets", &py_items, &py_focus))
+		return nullptr;
+
+	PyObject *py_iter = PyObject_GetIter(py_items);
+	if (!py_iter)
+	{
+		return PyErr_Format(PyExc_Exception, "argument is not an iterable of UObject or FAssetData");
+	}
+
+	FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
+
+	TArray<FAssetData> asset_data;
+	TArray<UObject *> uobjects;
+
+	while (PyObject *py_item = PyIter_Next(py_iter))
+	{
+		ue_PyFAssetData *py_data = py_ue_is_fassetdata(py_item);
+		if (py_data)
+		{
+			asset_data.Add(py_data->asset_data);
+		}
+		else
+		{
+			UObject *u_object = ue_py_check_type<UObject>(py_item);
+			if (!u_object)
+			{
+				return PyErr_Format(PyExc_Exception, "invalid item in iterable, must be UObject or FAssetData");
+			}
+			uobjects.Add(u_object);
+		}
+	}
+
+	if (asset_data.Num() > 0)
+	{
+		ContentBrowserModule.Get().SyncBrowserToAssets(asset_data, false, py_focus && PyObject_IsTrue(py_focus));
+	}
+
+	if (uobjects.Num() > 0)
+	{
+		ContentBrowserModule.Get().SyncBrowserToAssets(uobjects, false, py_focus && PyObject_IsTrue(py_focus));
+	}
+
+	Py_DECREF(py_iter);
+
+	Py_RETURN_NONE;
+}
+
+PyObject *py_unreal_engine_export_assets(PyObject * self, PyObject * args)
+{
+
+	if (!GEditor)
+		return PyErr_Format(PyExc_Exception, "no GEditor found");
+
+	PyObject * py_assets = nullptr;
+	char *filename;
+
+	if (!PyArg_ParseTuple(args, "Os:export_assets", &py_assets, &filename))
+	{
+		return nullptr;
+	}
+
+	TArray<UObject *> UObjects;
+	PyObject *py_iter = PyObject_GetIter(py_assets);
+
+	if (!py_iter)
+	{
+		return PyErr_Format(PyExc_Exception, "argument is not an iterable of UObject");
+	}
+
+	while (PyObject *py_item = PyIter_Next(py_iter))
+	{
+		UObject *Object = ue_py_check_type<UObject>(py_item);
+		if (!Object)
+		{
+			Py_DECREF(py_iter);
+			return PyErr_Format(PyExc_Exception, "argument is not an iterable of UObject");
+		}
+		UObjects.Add(Object);
+	}
+
+	Py_DECREF(py_iter);
+
+	FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+#if ENGINE_MINOR_VERSION > 16
+	AssetToolsModule.Get().ExportAssets(UObjects, FString(UTF8_TO_TCHAR(filename)));
+#endif
+
+	Py_RETURN_NONE;
+}
 #endif
 
