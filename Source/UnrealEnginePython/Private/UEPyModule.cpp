@@ -1,4 +1,4 @@
-#include "UnrealEnginePythonPrivatePCH.h"
+#include "UEPyModule.h"
 
 #include "UEPyEngine.h"
 #include "UEPyTimer.h"
@@ -47,12 +47,65 @@
 #include "Editor/BlueprintGraph/Public/BlueprintActionDatabase.h"
 #endif
 
+#include "Wrappers/UEPyESlateEnums.h"
 
-#include "PythonDelegate.h"
+#include "Wrappers/UEPyFVector.h"
+#include "Wrappers/UEPyFHitResult.h"
+#include "Wrappers/UEPyFRotator.h"
+#include "Wrappers/UEPyFTransform.h"
+#include "Wrappers/UEPyFColor.h"
+#include "Wrappers/UEPyFLinearColor.h"
+#include "Wrappers/UEPyFSocket.h"
+#include "Wrappers/UEPyFQuat.h"
+
+#include "Wrappers/UEPyFRawAnimSequenceTrack.h"
+
+#include "Wrappers/UEPyFRandomStream.h"
+
+#include "Wrappers/UEPyFPythonOutputDevice.h"
+#if WITH_EDITOR
+#include "Wrappers/UEPyFSoftSkinVertex.h"
+#endif
+#include "Wrappers/UEPyFMorphTargetDelta.h"
+#include "Wrappers/UEPyFObjectThumbnail.h"
+
+#include "Wrappers/UEPyFViewportClient.h"
+#if WITH_EDITOR
+#include "Wrappers/UEPyFEditorViewportClient.h"
+#endif
+
+#include "UEPyCallable.h"
+#include "UEPyUClassesImporter.h"
+#include "UEPyEnumsImporter.h"
+#include "UEPyUStructsImporter.h"
+
+#include "UEPyUScriptStruct.h"
+
+#if WITH_EDITOR
+#include "Wrappers/UEPyFAssetData.h"
+#include "Wrappers/UEPyFARFilter.h"
+#include "Wrappers/UEPyFRawMesh.h"
+#include "Wrappers/UEPyFStringAssetReference.h"
+#include "UObject/UEPyAnimSequence.h"
+#include "Blueprint/UEPyEdGraphPin.h"
+#include "UEPyIPlugin.h"
+#include "CollectionManager/UEPyICollectionManager.h"
+#include "MaterialEditorUtilities/UEPyFMaterialEditorUtilities.h"
+#endif
+
+#include "Slate/UEPySlate.h"
+#include "Http/UEPyIHttp.h"
+#include "ConsoleManager/UEPyIConsoleManager.h"
+#include "SlateApplication/UEPyFSlateApplication.h"
+#include "Voice/UEPyIVoiceCapture.h"
+
 #include "PythonFunction.h"
 #include "PythonClass.h"
 
-#include "Slate/UEPySlate.h"
+#if ENGINE_MINOR_VERSION >= 15
+#include "Engine/UserDefinedEnum.h"
+#endif
+
 
 #if ENGINE_MINOR_VERSION < 18
 #define USoftObjectProperty UAssetObjectProperty
@@ -487,6 +540,7 @@ static PyMethodDef ue_PyUObject_methods[] = {
 	{ "set_name", (PyCFunction)py_ue_set_name, METH_VARARGS, "" },
 
 	{ "bind_event", (PyCFunction)py_ue_bind_event, METH_VARARGS, "" },
+	{ "delegate_bind_ufunction", (PyCFunction)py_ue_delegate_bind_ufunction, METH_VARARGS, "" },
 
 	{ "get_py_proxy", (PyCFunction)py_ue_get_py_proxy, METH_VARARGS, "" },
 
@@ -522,6 +576,7 @@ static PyMethodDef ue_PyUObject_methods[] = {
 	{ "graph_add_node_variable_set", (PyCFunction)py_ue_graph_add_node_variable_set, METH_VARARGS, "" },
 
 	{ "graph_add_node", (PyCFunction)py_ue_graph_add_node, METH_VARARGS, "" },
+	{ "graph_add_node_dynamic_cast", (PyCFunction)py_ue_graph_add_node_dynamic_cast, METH_VARARGS, "" },
 	{ "graph_add_node_event", (PyCFunction)py_ue_graph_add_node_event, METH_VARARGS, "" },
 	{ "graph_get_good_place_for_new_node", (PyCFunction)py_ue_graph_get_good_place_for_new_node, METH_VARARGS, "" },
 
@@ -529,6 +584,10 @@ static PyMethodDef ue_PyUObject_methods[] = {
 	{ "node_get_title", (PyCFunction)py_ue_node_get_title, METH_VARARGS, "" },
 	{ "node_find_pin", (PyCFunction)py_ue_node_find_pin, METH_VARARGS, "" },
 	{ "node_create_pin", (PyCFunction)py_ue_node_create_pin, METH_VARARGS, "" },
+	{ "node_pin_type_changed", (PyCFunction)py_ue_node_pin_type_changed, METH_VARARGS, "" },
+	{ "node_pin_default_value_changed", (PyCFunction)py_ue_node_pin_default_value_changed, METH_VARARGS, "" },
+
+	{ "node_function_entry_set_pure", (PyCFunction)py_ue_node_function_entry_set_pure, METH_VARARGS, "" },
 
 	{ "node_allocate_default_pins", (PyCFunction)py_ue_node_allocate_default_pins, METH_VARARGS, "" },
 	{ "node_reconstruct", (PyCFunction)py_ue_node_reconstruct, METH_VARARGS, "" },
@@ -877,9 +936,10 @@ static PyMethodDef ue_PyUObject_methods[] = {
 #pragma warning(suppress: 4191)
 	{ "skeletal_mesh_build_lod", (PyCFunction)py_ue_skeletal_mesh_build_lod, METH_VARARGS | METH_KEYWORDS, "" },
 #endif
+#if WITH_EDITOR
 	{ "skeletal_mesh_register_morph_target", (PyCFunction)py_ue_skeletal_mesh_register_morph_target, METH_VARARGS, "" },
 
-#if WITH_EDITOR
+
 	{ "skeletal_mesh_to_import_vertex_map", (PyCFunction)py_ue_skeletal_mesh_to_import_vertex_map, METH_VARARGS, "" },
 
 	{ "morph_target_populate_deltas", (PyCFunction)py_ue_morph_target_populate_deltas, METH_VARARGS, "" },
@@ -1382,17 +1442,7 @@ UClass *unreal_engine_new_uclass(char *name, UClass *outer_parent)
 	return new_object;
 }
 
-// hack for avoiding loops in class constructors (thanks to the Unreal.js project for the idea)
-UClass *ue_py_class_constructor_placeholder = nullptr;
-static void UEPyClassConstructor(UClass *u_class, const FObjectInitializer &ObjectInitializer)
-{
-	if (UPythonClass *u_py_class_casted = Cast<UPythonClass>(u_class))
-	{
-		ue_py_class_constructor_placeholder = u_class;
-	}
-	u_class->ClassConstructor(ObjectInitializer);
-	ue_py_class_constructor_placeholder = nullptr;
-}
+
 
 int unreal_engine_py_init(ue_PyUObject *, PyObject *, PyObject *);
 
@@ -1499,21 +1549,10 @@ void unreal_engine_init_py_module()
 
 	ue_python_init_ivoice_capture(new_unreal_engine_module);
 
-	PyObject *py_sys = PyImport_ImportModule("sys");
-	PyObject *py_sys_dict = PyModule_GetDict(py_sys);
+	ue_py_register_magic_module("unreal_engine.classes", py_ue_new_uclassesimporter);
+	ue_py_register_magic_module("unreal_engine.enums", py_ue_new_enumsimporter);
+	ue_py_register_magic_module("unreal_engine.structs", py_ue_new_ustructsimporter);
 
-	PyObject *py_sys_modules = PyDict_GetItemString(py_sys_dict, "modules");
-	PyObject *u_classes_importer = py_ue_new_uclassesimporter();
-	Py_INCREF(u_classes_importer);
-	PyDict_SetItemString(py_sys_modules, "unreal_engine.classes", u_classes_importer);
-
-	PyObject *u_enums_importer = py_ue_new_enumsimporter();
-	Py_INCREF(u_enums_importer);
-	PyDict_SetItemString(py_sys_modules, "unreal_engine.enums", u_enums_importer);
-
-	PyObject *u_structs_importer = py_ue_new_ustructsimporter();
-	Py_INCREF(u_structs_importer);
-	PyDict_SetItemString(py_sys_modules, "unreal_engine.structs", u_structs_importer);
 
 	PyDict_SetItemString(unreal_engine_dict, "ENGINE_MAJOR_VERSION", PyLong_FromLong(ENGINE_MAJOR_VERSION));
 	PyDict_SetItemString(unreal_engine_dict, "ENGINE_MINOR_VERSION", PyLong_FromLong(ENGINE_MINOR_VERSION));
@@ -1924,6 +1963,11 @@ PyObject *ue_py_convert_property(UProperty *prop, uint8 *buffer, int32 index)
 	}
 
 	if (auto casted_prop = Cast<UMulticastDelegateProperty>(prop))
+	{
+		Py_RETURN_UOBJECT(casted_prop);
+	}
+
+	if (auto casted_prop = Cast<UDelegateProperty>(prop))
 	{
 		Py_RETURN_UOBJECT(casted_prop);
 	}
@@ -2377,6 +2421,19 @@ bool ue_py_convert_pyobject(PyObject *py_obj, UProperty *prop, uint8 *buffer, in
 				casted_prop_soft_object->SetPropertyValue_InContainer(buffer, FSoftObjectPtr(ue_obj->ue_object), index);
 				return true;
 			}
+			else if (auto casted_prop_weak_object = Cast<UWeakObjectProperty>(prop))
+			{
+				casted_prop_weak_object->SetPropertyValue_InContainer(buffer, FWeakObjectPtr(ue_obj->ue_object), index);
+				return true;
+			}
+			else if (auto casted_prop = Cast<UObjectPropertyBase>(prop))
+			{
+				// ensure the object type is correct, otherwise crash could happen (soon or later)
+				if (!ue_obj->ue_object->IsA(casted_prop->PropertyClass))
+					return false;
+				casted_prop->SetObjectPropertyValue_InContainer(buffer, ue_obj->ue_object, index);
+				return true;
+			}
 
 			return false;
 		}
@@ -2393,14 +2450,20 @@ bool ue_py_convert_pyobject(PyObject *py_obj, UProperty *prop, uint8 *buffer, in
 				return true;
 			}
 			else if (auto casted_prop_soft_object = Cast<USoftObjectProperty>(prop))
-
 			{
 				if (!ue_obj->ue_object->IsA(casted_prop_soft_object->PropertyClass))
 					return false;
 				casted_prop_soft_object->SetPropertyValue_InContainer(buffer, FSoftObjectPtr(ue_obj->ue_object), index);
 				return true;
 			}
-
+			else if (auto casted_prop_interface = Cast<UInterfaceProperty>(prop))
+			{
+				// ensure the object type is correct, otherwise crash could happen (soon or later)
+				if (!ue_obj->ue_object->GetClass()->ImplementsInterface(casted_prop_interface->InterfaceClass))
+					return false;
+				casted_prop_interface->SetPropertyValue_InContainer(buffer, FScriptInterface(ue_obj->ue_object), index);
+				return true;
+			}
 		}
 		return false;
 	}
@@ -2622,8 +2685,8 @@ PyObject *py_ue_ufunction_call(UFunction *u_function, UObject *u_obj, PyObject *
 #endif
 			}
 #endif
-			}
 		}
+	}
 
 
 	Py_ssize_t tuple_len = PyTuple_Size(args);
@@ -2735,7 +2798,7 @@ PyObject *py_ue_ufunction_call(UFunction *u_function, UObject *u_obj, PyObject *
 
 	Py_INCREF(Py_None);
 	return Py_None;
-	}
+}
 
 PyObject *ue_bind_pyevent(ue_PyUObject *u_obj, FString event_name, PyObject *py_callable, bool fail_on_wrong_property)
 {
@@ -2762,6 +2825,17 @@ PyObject *ue_bind_pyevent(ue_PyUObject *u_obj, FString event_name, PyObject *py_
 
 		// re-assign multicast delegate
 		casted_prop->SetPropertyValue_InContainer(u_obj->ue_object, multiscript_delegate);
+	}
+	else if (auto casted_prop_delegate = Cast<UDelegateProperty>(u_property))
+	{
+
+		FScriptDelegate script_delegate = casted_prop_delegate->GetPropertyValue_InContainer(u_obj->ue_object);
+		UPythonDelegate *py_delegate = FUnrealEnginePythonHouseKeeper::Get()->NewDelegate(u_obj->ue_object, py_callable, casted_prop_delegate->SignatureFunction);
+		// fake UFUNCTION for bypassing checks
+		script_delegate.BindUFunction(py_delegate, FName("PyFakeCallable"));
+
+		// re-assign multicast delegate
+		casted_prop_delegate->SetPropertyValue_InContainer(u_obj->ue_object, script_delegate);
 	}
 	else
 	{
@@ -3102,7 +3176,7 @@ UFunction *unreal_engine_add_function(UClass *u_class, char *name, PyObject *py_
 #endif
 
 	return function;
-}
+	}
 
 FGuid *ue_py_check_fguid(PyObject *py_obj)
 {

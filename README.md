@@ -2,7 +2,7 @@
 # UnrealEnginePython
 Embed Python in Unreal Engine 4
 
-Teaser: https://twitter.com/KNLstudio/status/932657812466843648
+Teaser (by Kite & Lightning): https://twitter.com/KNLstudio/status/932657812466843648
 
 # How and Why ?
 
@@ -27,6 +27,8 @@ All of the exposed engine features are under the 'unreal_engine' virtual module 
 The currently supported Unreal Engine versions are 4.12, 4.13, 4.14, 4.15, 4.16, 4.17, 4.18 and 4.19
 
 We support official python.org releases as well as IntelPython and Anaconda distributions.
+
+Note: this plugin has nothing to do with the experimental 'PythonScriptPlugin' included in Unreal Engine >= 4.19. We aim at full integration with engine and editor (included the Slate api), as well as support for the vast majority of python features like asyncio, coroutines, generators, threads and third party modules.
 
 # Binary installation on Windows (64 bit)
 
@@ -864,7 +866,7 @@ By the way, if you want to play with experimental threading support, just uncomm
 //#define UEPY_THREADING 1
 ```
 
-on top of UnrealEnginePythonPrivatePCH.h and rebuild the plugin.
+on top of UnrealEnginePython.h and rebuild the plugin.
 
 As with native threads, do not modify (included deletion) UObjects from non-main threads.
 

@@ -1,6 +1,6 @@
-#include "UnrealEnginePythonPrivatePCH.h"
-#include "PythonFunction.h"
 
+#include "PythonFunction.h"
+#include "UEPyModule.h"
 
 
 void UPythonFunction::SetPyCallable(PyObject *callable)

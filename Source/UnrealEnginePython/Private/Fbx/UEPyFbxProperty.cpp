@@ -1,4 +1,4 @@
-#include "UnrealEnginePythonPrivatePCH.h"
+#include "UEPyFbxProperty.h"
 
 #if ENGINE_MINOR_VERSION > 12
 #if WITH_EDITOR

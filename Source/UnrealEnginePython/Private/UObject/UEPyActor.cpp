@@ -1,9 +1,8 @@
-#include "UnrealEnginePythonPrivatePCH.h"
+#include "UEPyActor.h"
 
-#include "Runtime/LevelSequence/Public/LevelSequenceActor.h"
-#include "Runtime/LevelSequence/Public/LevelSequence.h"
-#include "PythonComponent.h"
-#include "UEPyObject.h"
+#if WITH_EDITOR
+#include "Editor.h"
+#endif
 
 PyObject *py_ue_actor_has_tag(ue_PyUObject * self, PyObject * args)
 {

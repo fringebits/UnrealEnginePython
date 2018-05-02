@@ -1,6 +1,6 @@
 // Copyright 20Tab S.r.l.
 
-#include "UnrealEnginePythonPrivatePCH.h"
+#include "UEPyEngine.h"
 
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/KismetMathLibrary.h"
@@ -9,7 +9,11 @@
 #include "Developer/DesktopPlatform/Public/DesktopPlatformModule.h"
 #if WITH_EDITOR
 #include "PackageTools.h"
+#include "Editor.h"
 #endif
+
+#include "UnrealEngine.h"
+#include "Runtime/Engine/Classes/Engine/GameViewportClient.h"
 
 #if ENGINE_MINOR_VERSION >= 18
 #include "HAL/PlatformApplicationMisc.h"
