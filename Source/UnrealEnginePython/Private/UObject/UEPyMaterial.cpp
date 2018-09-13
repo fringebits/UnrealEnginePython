@@ -15,6 +15,68 @@
 #include "Components/PrimitiveComponent.h"
 #include "Engine/StaticMesh.h"
 
+PyObject *py_ue_set_material_by_name(ue_PyUObject *self, PyObject * args)
+{
+
+	ue_py_check(self);
+
+	char *slot_name;
+	PyObject *py_mat;
+	if (!PyArg_ParseTuple(args, "sO:set_material_by_name", &slot_name, &py_mat))
+	{
+		return nullptr;
+	}
+
+	UPrimitiveComponent *primitive = ue_py_check_type<UPrimitiveComponent>(self);
+	if (!primitive)
+		return PyErr_Format(PyExc_Exception, "uobject is not a UPrimitiveComponent");
+
+	UMaterialInterface *material = ue_py_check_type<UMaterialInterface>(py_mat);
+	if (!material)
+		return PyErr_Format(PyExc_Exception, "argument is not a UMaterialInterface");
+
+	primitive->SetMaterialByName(FName(UTF8_TO_TCHAR(slot_name)), material);
+
+	Py_RETURN_NONE;
+}
+
+PyObject *py_ue_set_material(ue_PyUObject *self, PyObject * args)
+{
+
+	ue_py_check(self);
+
+	int slot;
+	PyObject *py_mat;
+	if (!PyArg_ParseTuple(args, "iO:set_material", &slot, &py_mat))
+	{
+		return nullptr;
+	}
+
+	UMaterialInterface *material = ue_py_check_type<UMaterialInterface>(py_mat);
+	if (!material)
+		return PyErr_Format(PyExc_Exception, "argument is not a UMaterialInterface");
+
+#if ENGINE_MINOR_VERSION >= 20
+#if WITH_EDITOR
+	UStaticMesh *mesh = ue_py_check_type<UStaticMesh>(self);
+	if (mesh)
+	{
+		mesh->SetMaterial(slot, material);
+		Py_RETURN_NONE;
+	}
+#endif
+#endif
+
+	UPrimitiveComponent *primitive = ue_py_check_type<UPrimitiveComponent>(self);
+	if (!primitive)
+		return PyErr_Format(PyExc_Exception, "uobject is not a UPrimitiveComponent");
+
+
+	primitive->SetMaterial(slot, material);
+
+	Py_RETURN_NONE;
+}
+
 PyObject *py_ue_set_material_scalar_parameter(ue_PyUObject *self, PyObject * args)
 {
 
@@ -46,6 +108,81 @@ PyObject *py_ue_set_material_scalar_parameter(ue_PyUObject *self, PyObject * arg
 		material_instance->SetScalarParameterValue(parameterName, scalarValue);
 		valid = true;
 	}
+
+	if (!valid)
+	{
+		return PyErr_Format(PyExc_Exception, "uobject is not a MaterialInstance");
+	}
+
+	Py_RETURN_NONE;
+
+}
+
+PyObject *py_ue_set_material_static_switch_parameter(ue_PyUObject *self, PyObject * args)
+{
+
+	ue_py_check(self);
+
+	char *switchName = nullptr;
+	PyObject *py_bool = nullptr;
+	if (!PyArg_ParseTuple(args, "sO:set_material_static_switch_parameter", &switchName, &py_bool))
+	{
+		return NULL;
+	}
+
+	FName parameterName(UTF8_TO_TCHAR(switchName));
+
+	bool switchValue = false;
+	if (PyObject_IsTrue(py_bool))
+	{
+		switchValue = true;
+	}
+
+	bool valid = false;
+
+#if WITH_EDITOR
+	if (self->ue_object->IsA<UMaterialInstance>())
+	{
+		UMaterialInstance *material_instance = (UMaterialInstance *)self->ue_object;
+		valid = true;
+		FStaticParameterSet staticParameterSet = material_instance->GetStaticParameters();
+
+		bool isExisting = false;
+		for (auto& parameter : staticParameterSet.StaticSwitchParameters)
+		{
+#if ENGINE_MINOR_VERSION < 19
+			if (parameter.bOverride && parameter.ParameterName == parameterName)
+#else
+			if (parameter.bOverride && parameter.ParameterInfo.Name == parameterName)
+#endif
+			{
+				parameter.Value = switchValue;
+				isExisting = true;
+				break;
+			}
+		}
+
+		if (!isExisting)
+		{
+			FStaticSwitchParameter SwitchParameter;
+#if ENGINE_MINOR_VERSION < 19
+			SwitchParameter.ParameterName = parameterName;
+#else
+			SwitchParameter.ParameterInfo.Name = parameterName;
+#endif
+			SwitchParameter.Value = switchValue;
+
+			SwitchParameter.bOverride = true;
+			staticParameterSet.StaticSwitchParameters.Add(SwitchParameter);
+		}
+
+
+		material_instance->UpdateStaticPermutation(staticParameterSet);
+
+	}
+
+
+#endif
 
 	if (!valid)
 	{
@@ -215,19 +352,12 @@ PyObject *py_ue_set_material_texture_parameter(ue_PyUObject *self, PyObject * ar
 	PyObject *textureObject = nullptr;
 	if (!PyArg_ParseTuple(args, "sO:set_texture_parameter", &textureName, &textureObject))
 	{
-		return NULL;
+		return nullptr;
 	}
 
-	if (!ue_is_pyuobject(textureObject))
-	{
-		return PyErr_Format(PyExc_Exception, "argument is not a UObject");
-	}
-
-	ue_PyUObject *py_obj = (ue_PyUObject *)textureObject;
-	if (!py_obj->ue_object->IsA<UTexture>())
+	UTexture *ue_texture = ue_py_check_type<UTexture>(textureObject);
+	if (!ue_texture)
 		return PyErr_Format(PyExc_Exception, "uobject is not a UTexture");
-
-	UTexture *ue_texture = (UTexture *)py_obj->ue_object;
 
 	FName parameterName(UTF8_TO_TCHAR(textureName));
 
@@ -308,44 +438,6 @@ PyObject *py_ue_create_material_instance_dynamic(ue_PyUObject *self, PyObject * 
 	Py_RETURN_UOBJECT(material_dynamic);
 }
 
-PyObject *py_ue_set_material(ue_PyUObject *self, PyObject * args)
-{
-
-	ue_py_check(self);
-
-	int index;
-	PyObject *py_material = nullptr;
-
-	if (!PyArg_ParseTuple(args, "iO:set_material", &index, &py_material))
-	{
-		return NULL;
-	}
-
-	if (!self->ue_object->IsA<UPrimitiveComponent>())
-	{
-		return PyErr_Format(PyExc_Exception, "uobject is not a UPrimitiveComponent");
-	}
-
-	UPrimitiveComponent *component = (UPrimitiveComponent *)self->ue_object;
-
-	if (!ue_is_pyuobject(py_material))
-	{
-		return PyErr_Format(PyExc_Exception, "argument is not a UObject");
-	}
-
-	ue_PyUObject *py_obj = (ue_PyUObject *)py_material;
-
-	if (!py_obj->ue_object->IsA<UMaterialInterface>())
-	{
-		return PyErr_Format(PyExc_Exception, "uobject is not a UMaterialInterface");
-	}
-
-	UMaterialInterface *material_interface = (UMaterialInterface *)py_obj->ue_object;
-
-	component->SetMaterial(index, material_interface);
-
-	Py_RETURN_NONE;
-}
 
 
 #if WITH_EDITOR

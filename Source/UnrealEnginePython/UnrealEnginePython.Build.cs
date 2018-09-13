@@ -11,13 +11,14 @@ public class UnrealEnginePython : ModuleRules
     private string pythonHome = "";
     // otherwise specify the path of your python installation
     //private string pythonHome = "C:/Program Files/Python36";
-    // this is an example for Homebrew on Mac 
+    // this is an example for Homebrew on Mac
     //private string pythonHome = "/usr/local/Cellar/python3/3.6.0/Frameworks/Python.framework/Versions/3.6/";
     // on Linux an include;libs syntax is expected:
     //private string pythonHome = "/usr/local/include/python3.6;/usr/local/lib/libpython3.6.so"
 
     private string[] windowsKnownPaths =
     {
+        "C:/Program Files/Python37",
         "C:/Program Files/Python36",
         "C:/Program Files/Python35",
         "C:/Python27",
@@ -26,9 +27,11 @@ public class UnrealEnginePython : ModuleRules
 
     private string[] macKnownPaths =
     {
+        "/Library/Frameworks/Python.framework/Versions/3.7",
         "/Library/Frameworks/Python.framework/Versions/3.6",
         "/Library/Frameworks/Python.framework/Versions/3.5",
         "/Library/Frameworks/Python.framework/Versions/2.7",
+        "/System/Library/Frameworks/Python.framework/Versions/3.7",
         "/System/Library/Frameworks/Python.framework/Versions/3.6",
         "/System/Library/Frameworks/Python.framework/Versions/3.5",
         "/System/Library/Frameworks/Python.framework/Versions/2.7"
@@ -36,11 +39,15 @@ public class UnrealEnginePython : ModuleRules
 
     private string[] linuxKnownIncludesPaths =
     {
+        "/usr/local/include/python3.7",
+        "/usr/local/include/python3.7m",
         "/usr/local/include/python3.6",
         "/usr/local/include/python3.6m",
         "/usr/local/include/python3.5",
         "/usr/local/include/python3.5m",
         "/usr/local/include/python2.7",
+        "/usr/include/python3.7",
+        "/usr/include/python3.7m",
         "/usr/include/python3.6",
         "/usr/include/python3.6m",
         "/usr/include/python3.5",
@@ -50,6 +57,10 @@ public class UnrealEnginePython : ModuleRules
 
     private string[] linuxKnownLibsPaths =
     {
+        "/usr/local/lib/libpython3.7.so",
+        "/usr/local/lib/libpython3.7m.so",
+        "/usr/local/lib/x86_64-linux-gnu/libpython3.7.so",
+        "/usr/local/lib/x86_64-linux-gnu/libpython3.7m.so",
         "/usr/local/lib/libpython3.6.so",
         "/usr/local/lib/libpython3.6m.so",
         "/usr/local/lib/x86_64-linux-gnu/libpython3.6.so",
@@ -60,6 +71,10 @@ public class UnrealEnginePython : ModuleRules
         "/usr/local/lib/x86_64-linux-gnu/libpython3.5m.so",
         "/usr/local/lib/libpython2.7.so",
         "/usr/local/lib/x86_64-linux-gnu/libpython2.7.so",
+        "/usr/lib/libpython3.7.so",
+        "/usr/lib/libpython3.7m.so",
+        "/usr/lib/x86_64-linux-gnu/libpython3.7.so",
+        "/usr/lib/x86_64-linux-gnu/libpython3.7m.so",
         "/usr/lib/libpython3.6.so",
         "/usr/lib/libpython3.6m.so",
         "/usr/lib/x86_64-linux-gnu/libpython3.6.so",
@@ -129,6 +144,7 @@ public class UnrealEnginePython : ModuleRules
                 "MovieSceneCapture",
                 "Landscape",
                 "Foliage",
+                "AIModule"
 				// ... add private dependencies that you statically link with here ...
 			}
             );
@@ -190,7 +206,7 @@ public class UnrealEnginePython : ModuleRules
         {
             if (pythonHome == "")
             {
-                pythonHome = DiscoverPythonPath(windowsKnownPaths);
+                pythonHome = DiscoverPythonPath(windowsKnownPaths, "Win64");
                 if (pythonHome == "")
                 {
                     throw new System.Exception("Unable to find Python installation");
@@ -206,7 +222,7 @@ public class UnrealEnginePython : ModuleRules
         {
             if (pythonHome == "")
             {
-                pythonHome = DiscoverPythonPath(macKnownPaths);
+                pythonHome = DiscoverPythonPath(macKnownPaths, "Mac");
                 if (pythonHome == "")
                 {
                     throw new System.Exception("Unable to find Python installation");
@@ -217,7 +233,6 @@ public class UnrealEnginePython : ModuleRules
             string libPath = GetMacPythonLibFile(pythonHome);
             PublicLibraryPaths.Add(Path.GetDirectoryName(libPath));
             PublicDelayLoadDLLs.Add(libPath);
-            PublicDefinitions.Add(string.Format("UNREAL_ENGINE_PYTHON_ON_MAC"));
         }
         else if (Target.Platform == UnrealTargetPlatform.Linux)
         {
@@ -235,6 +250,7 @@ public class UnrealEnginePython : ModuleRules
                 }
                 PublicIncludePaths.Add(includesPath);
                 PublicAdditionalLibraries.Add(libsPath);
+
             }
             else
             {
@@ -242,31 +258,39 @@ public class UnrealEnginePython : ModuleRules
                 PublicIncludePaths.Add(items[0]);
                 PublicAdditionalLibraries.Add(items[1]);
             }
-            PublicDefinitions.Add(string.Format("UNREAL_ENGINE_PYTHON_ON_LINUX"));
         }
-
-        string enableThreads = System.Environment.GetEnvironmentVariable("UEP_ENABLE_THREADS");
-        if (!string.IsNullOrEmpty(enableThreads))
+#if WITH_FORWARDED_MODULE_RULES_CTOR
+        else if (Target.Platform == UnrealTargetPlatform.Android)
         {
             PublicDefinitions.Add("UEPY_THREADING");
             System.Console.WriteLine("*** Enabled Python Threads support ***");
+
+            PublicIncludePaths.Add(System.IO.Path.Combine(ModuleDirectory, "../../android/python35/include"));
+            PublicLibraryPaths.Add(System.IO.Path.Combine(ModuleDirectory, "../../android/armeabi-v7a"));
+            PublicAdditionalLibraries.Add("python3.5m");
+
+            string APLName = "UnrealEnginePython_APL.xml";
+            string RelAPLPath = Utils.MakePathRelativeTo(System.IO.Path.Combine(ModuleDirectory, APLName), Target.RelativeEnginePath);
+            AdditionalPropertiesForReceipt.Add(new ReceiptProperty("AndroidPlugin", RelAPLPath));
         }
+#endif
 
     }
 
     private bool IsPathRelative(string Path)
     {
         bool IsRooted = Path.StartsWith("\\", System.StringComparison.Ordinal) || // Root of the current directory on Windows. Also covers "\\" for UNC or "network" paths.
-                        Path.StartsWith("/", System.StringComparison.Ordinal) ||  // Root of the current directory on Windows, root on UNIX-likes. 
-                                                                                  // Also covers "\\", considering normalization replaces "\\" with "//".	
+                        Path.StartsWith("/", System.StringComparison.Ordinal) ||  // Root of the current directory on Windows, root on UNIX-likes.
+                                                                                  // Also covers "\\", considering normalization replaces "\\" with "//".
                         (Path.Length >= 2 && char.IsLetter(Path[0]) && Path[1] == ':'); // Starts with "<DriveLetter>:"
         return !IsRooted;
     }
 
-    private string DiscoverPythonPath(string[] knownPaths)
+    private string DiscoverPythonPath(string[] knownPaths, string binaryPath)
     {
         // insert the PYTHONHOME content as the first known path
         List<string> paths = new List<string>(knownPaths);
+        paths.Insert(0, Path.Combine(ModuleDirectory, "../../Binaries", binaryPath));
         string environmentPath = System.Environment.GetEnvironmentVariable("PYTHONHOME");
         if (!string.IsNullOrEmpty(environmentPath))
             paths.Insert(0, environmentPath);
@@ -297,7 +321,9 @@ public class UnrealEnginePython : ModuleRules
 
     private string DiscoverLinuxPythonIncludesPath()
     {
-        foreach (string path in linuxKnownIncludesPaths)
+        List<string> paths = new List<string>(linuxKnownIncludesPaths);
+        paths.Insert(0, Path.Combine(ModuleDirectory, "../../Binaries", "Linux", "include"));
+        foreach (string path in paths)
         {
             string headerFile = Path.Combine(path, "Python.h");
             if (File.Exists(headerFile))
@@ -310,7 +336,10 @@ public class UnrealEnginePython : ModuleRules
 
     private string DiscoverLinuxPythonLibsPath()
     {
-        foreach (string path in linuxKnownLibsPaths)
+        List<string> paths = new List<string>(linuxKnownLibsPaths);
+        paths.Insert(0, Path.Combine(ModuleDirectory, "../../Binaries", "Linux", "lib"));
+        paths.Insert(0, Path.Combine(ModuleDirectory, "../../Binaries", "Linux", "lib64"));
+        foreach (string path in paths)
         {
             if (File.Exists(path))
             {

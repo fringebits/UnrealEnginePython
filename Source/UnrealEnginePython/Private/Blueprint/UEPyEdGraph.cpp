@@ -408,7 +408,9 @@ PyObject *py_ue_graph_add_node_dynamic_cast(ue_PyUObject * self, PyObject * args
 
 	UK2Node_DynamicCast *node = NewObject<UK2Node_DynamicCast>(graph);
 	node->TargetType = u_class;
+#if ENGINE_MINOR_VERSION > 15
 	node->SetPurity(false);
+#endif
 	node->AllocateDefaultPins();
 
 	node->CreateNewGuid();
@@ -487,8 +489,7 @@ PyObject *py_ue_node_allocate_default_pins(ue_PyUObject * self, PyObject * args)
 
 	node->AllocateDefaultPins();
 
-	Py_INCREF(Py_None);
-	return Py_None;
+	Py_RETURN_NONE;
 }
 
 PyObject *py_ue_node_reconstruct(ue_PyUObject * self, PyObject * args)
@@ -502,8 +503,7 @@ PyObject *py_ue_node_reconstruct(ue_PyUObject * self, PyObject * args)
 
 	node->GetSchema()->ReconstructNode(*node);
 
-	Py_INCREF(Py_None);
-	return Py_None;
+	Py_RETURN_NONE;
 }
 
 PyObject *py_ue_node_find_pin(ue_PyUObject * self, PyObject * args)
@@ -530,9 +530,7 @@ PyObject *py_ue_node_find_pin(ue_PyUObject * self, PyObject * args)
 		return PyErr_Format(PyExc_Exception, "unable to find pin \"%s\"", name);
 	}
 
-	PyObject *ret = py_ue_new_edgraphpin(pin);
-	Py_INCREF(ret);
-	return ret;
+	return py_ue_new_edgraphpin(pin);
 }
 
 PyObject *py_ue_node_function_entry_set_pure(ue_PyUObject * self, PyObject * args)
@@ -633,9 +631,7 @@ PyObject *py_ue_node_create_pin(ue_PyUObject * self, PyObject * args)
 		FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(bp);
 	}
 
-	PyObject *ret = py_ue_new_edgraphpin(pin);
-	Py_INCREF(ret);
-	return ret;
+	return py_ue_new_edgraphpin(pin);
 }
 
 
