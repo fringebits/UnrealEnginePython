@@ -660,6 +660,7 @@ static PyMethodDef ue_PyUObject_methods[] = {
 #if WITH_EDITOR
 	{ "static_mesh_build", (PyCFunction)py_ue_static_mesh_build, METH_VARARGS, "" },
 	{ "static_mesh_create_body_setup", (PyCFunction)py_ue_static_mesh_create_body_setup, METH_VARARGS, "" },
+	{ "get_source_file", (PyCFunction)py_ue_static_mesh_get_source_file, METH_VARARGS, "" },
 #endif
 
 	// Input

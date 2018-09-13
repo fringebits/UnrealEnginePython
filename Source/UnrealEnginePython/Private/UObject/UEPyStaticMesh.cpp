@@ -4,6 +4,7 @@
 #if WITH_EDITOR
 
 #include "Engine/StaticMesh.h"
+#include "EditorFramework/AssetImportData.h"
 #include "Wrappers/UEPyFRawMesh.h"
 
 PyObject *py_ue_static_mesh_build(ue_PyUObject *self, PyObject * args)
@@ -58,6 +59,26 @@ PyObject *py_ue_static_mesh_get_raw_mesh(ue_PyUObject *self, PyObject * args)
 	mesh->SourceModels[lod_index].RawMeshBulkData->LoadRawMesh(raw_mesh);
 
 	return py_ue_new_fraw_mesh(raw_mesh);
+}
+
+PyObject *py_ue_static_mesh_get_source_file(ue_PyUObject *self, PyObject * args) {
+
+	ue_py_check(self);
+
+	UStaticMesh *mesh = ue_py_check_type<UStaticMesh>(self);
+	if (!mesh)
+		return PyErr_Format(PyExc_Exception, "uobject is not a UStaticMesh");
+
+	
+	UAssetImportData *importData = mesh->AssetImportData;
+	FAssetImportInfo sourceData = importData->SourceData;
+
+	FString fileName = "";
+	if (sourceData.SourceFiles.IsValidIndex(0)) {
+		fileName = sourceData.SourceFiles[0].RelativeFilename;
+	}
+
+	return PyUnicode_FromString(TCHAR_TO_UTF8(*(fileName)));
 }
 
 #endif
